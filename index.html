@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadowing Player Pro</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; display: flex; gap: 20px; }
+        .sidebar { width: 300px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); height: calc(100vh - 40px); overflow-y: auto; }
+        .main-content { flex: 1; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h2, h3 { color: #333; margin-top: 0; }
+
+        /* Playlist Styles */
+        .folder-btn { background: #6f42c1; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; margin-bottom: 15px; }
+        .folder-btn:hover { background: #59339d; }
+        .ep-item { padding: 12px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+        .ep-item:hover { background: #f8f9fa; border-color: #007bff; }
+        .ep-item.active { background: #e7f1ff; border-color: #007bff; font-weight: bold; }
+        .badge { font-size: 12px; background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 5px; }
+
+        /* Video & Controls */
+        video { width: 100%; border-radius: 8px; background: #000; margin-bottom: 20px; aspect-ratio: 16/9; }
+        .controls-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .control-group { background: #f8f9fa; padding: 15px; border-radius: 8px; }
+
+        .btn { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; margin: 4px 2px; }
+        .btn:hover { background: #0056b3; }
+        .btn.secondary { background: #6c757d; }
+        .btn.warning { background: #ffc107; color: black; }
+        .btn.success { background: #28a745; }
+
+        .manual-time { width: 60px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+        .saved-segment-box { background: #e3f2fd; padding: 10px; border-radius: 6px; margin-top: 10px; display: none; border: 1px dashed #007bff; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>📺 Episodes</h2>
+    <label class="folder-btn" style="display: block; text-align: center;">
+        📂 Load "S01" Folder
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
+    </label>
+    <div id="playlist">
+        <p style="color: #666; font-size: 14px; text-align: center;">Click the button above to load your files.</p>
+    </div>
+</div>
+
+<div class="main-content">
+    <h2 id="currentEpTitle">Select an episode to start</h2>
+    <video id="player" controls></video>
+
+    <div class="controls-grid">
+        <div class="control-group">
+            <h3>🔄 Intensive Loop</h3>
+            <button class="btn" id="btnSetStart">Set [A]</button>
+            <button class="btn" id="btnSetEnd">Set [B]</button>
+            <button class="btn success" id="btnToggleLoop">Loop OFF</button>
+            <button class="btn secondary" id="btnJumpToStart">Replay [A]</button>
+
+            <div style="margin-top: 10px;">
+                <label>Manual (MM:SS): </label>
+                <input type="text" id="manualA" class="manual-time" placeholder="00:00"> to
+                <input type="text" id="manualB" class="manual-time" placeholder="00:00">
+                <button class="btn secondary" id="btnApplyManual">Apply</button>
+            </div>
+
+            <div style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
+                <button class="btn warning" id="btnSaveSegment">💾 Save Segment to Memory</button>
+                <div id="savedSegmentUI" class="saved-segment-box">
+                    <strong>Saved Cut:</strong> <span id="savedTimeTxt"></span>
+                    <button class="btn success" id="btnPlaySaved" style="width: 100%; margin-top: 5px;">▶️ Play Saved Segment</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>💬 Subtitles & Tools</h3>
+            <select id="subSelector" style="padding: 8px; width: 100%; margin-bottom: 10px;">
+                <option value="none">No Subtitles (无字幕)</option>
+                <option value="en">English (仅英文)</option>
+                <option value="bilingual">Bilingual (中英双语)</option>
+            </select>
+
+            <button class="btn secondary" id="btnMinus">-1 Sec</button>
+            <button class="btn secondary" id="btnPlus">+1 Sec</button>
+            <button class="btn secondary" id="btnBlindMode">👁️ Blind Mode</button>
+
+            <div style="margin-top: 10px;">
+                <label>Speed: </label>
+                <select id="speedSelector" style="padding: 6px;">
+                    <option value="1.0">1.0x</option>
+                    <option value="0.9">0.9x</option>
+                    <option value="0.8">0.8x</option>
+                    <option value="0.7">0.7x</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const player = document.getElementById('player');
+    let episodesData = {}; // Stores files for each episode
+    let currentEpKey = null;
+    let loopStart = -1;
+    let loopEnd = -1;
+    let isLooping = false;
+    let isBlind = false;
+
+    // Load saved memory from localStorage (Browser Database)
+    let savedSegments = JSON.parse(localStorage.getItem('shadowing_segments')) || {};
+
+    // --- 1. Folder Scanning & Playlist Generation ---
+    document.getElementById('folderInput').addEventListener('change', function(e) {
+        const files = e.target.files;
+        episodesData = {};
+        document.getElementById('playlist').innerHTML = '';
+
+        for (let file of files) {
+            // Match pattern like "MDJT S01E01"
+            const match = file.name.match(/MDJT S\d{2}E\d{2}/i);
+            if (match) {
+                const epKey = match[0].toUpperCase();
+                if (!episodesData[epKey]) episodesData[epKey] = {};
+
+                if (file.name.endsWith('.mp4')) episodesData[epKey].video = file;
+                else if (file.name.endsWith('-EN.srt')) episodesData[epKey].enSrt = file;
+                else if (file.name.endsWith('.srt') && !file.name.endsWith('-EN.srt')) episodesData[epKey].cnSrt = file;
+            }
+        }
+
+        // Render Playlist
+        const sortedKeys = Object.keys(episodesData).sort();
+        sortedKeys.forEach(key => {
+            const ep = episodesData[key];
+            if (ep.video) { // Only render if video exists
+                const div = document.createElement('div');
+                div.className = 'ep-item';
+                div.id = 'ep-' + key;
+
+                let html = `<strong>${key}</strong>`;
+                if (savedSegments[key]) html += `<span class="badge">Has Save</span>`;
+                div.innerHTML = html;
+
+                div.onclick = () => loadEpisode(key);
+                document.getElementById('playlist').appendChild(div);
+            }
+        });
+    });
+
+    // --- 2. Episode Loading & Auto-Subtitle ---
+    function srtToVtt(srtText) {
+        let vttText = "WEBVTT\n\n";
+        vttText += srtText.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        const blob = new Blob([vttText], { type: 'text/vtt' });
+        return URL.createObjectURL(blob);
+    }
+
+    function loadSubtitleTrack(file, lang, label) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.srclang = lang;
+            track.label = label;
+            track.src = srtToVtt(evt.target.result);
+            player.appendChild(track);
+            applySubtitleSelection(); // Apply current dropdown state
+        };
+        reader.readAsText(file);
+    }
+
+    function loadEpisode(key) {
+        currentEpKey = key;
+        const ep = episodesData[key];
+
+        // Highlight active item
+        document.querySelectorAll('.ep-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('ep-' + key).classList.add('active');
+        document.getElementById('currentEpTitle').innerText = key + " Shadowing Mode";
+
+        // Reset Player
+        player.innerHTML = '';
+        player.src = URL.createObjectURL(ep.video);
+
+        // Load matched subtitles automatically
+        if (ep.enSrt) loadSubtitleTrack(ep.enSrt, 'en', 'English');
+        if (ep.cnSrt) loadSubtitleTrack(ep.cnSrt, 'zh', 'Bilingual');
+
+        // Check for saved segments in this episode
+        checkSavedSegmentUI();
+
+        // Auto-play
+        player.play();
+    }
+
+    // --- 3. Subtitle Management ---
+    function applySubtitleSelection() {
+        const val = document.getElementById('subSelector').value;
+        for (let i = 0; i < player.textTracks.length; i++) {
+            player.textTracks[i].mode = 'disabled';
+            if (val === 'en' && player.textTracks[i].language === 'en') player.textTracks[i].mode = 'showing';
+            if (val === 'bilingual' && player.textTracks[i].language === 'zh') player.textTracks[i].mode = 'showing';
+        }
+    }
+    document.getElementById('subSelector').addEventListener('change', applySubtitleSelection);
+
+    // --- 4. Manual Time Input & Formatting ---
+    function parseTime(str) {
+        const parts = str.split(':').map(Number);
+        if (parts.length === 2) return parts[0] * 60 + parts[1]; // MM:SS
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]; // HH:MM:SS
+        return parseFloat(str); // Seconds
+    }
+    function formatTime(seconds) {
+        if (seconds < 0) return "--:--";
+        return new Date(seconds * 1000).toISOString().substr(14, 5); // Returns MM:SS
+    }
+
+    document.getElementById('btnApplyManual').addEventListener('click', () => {
+        const a = parseTime(document.getElementById('manualA').value);
+        const b = parseTime(document.getElementById('manualB').value);
+        if (!isNaN(a) && !isNaN(b) && b > a) {
+            loopStart = a; loopEnd = b;
+            updateLoopInputs();
+            alert(`Manual loop set: ${formatTime(a)} to ${formatTime(b)}`);
+        }
+    });
+
+    function updateLoopInputs() {
+        document.getElementById('manualA').value = formatTime(loopStart);
+        document.getElementById('manualB').value = formatTime(loopEnd);
+    }
+
+    // --- 5. A-B Loop Logic ---
+    document.getElementById('btnSetStart').addEventListener('click', () => { loopStart = player.currentTime; updateLoopInputs(); });
+    document.getElementById('btnSetEnd').addEventListener('click', () => { loopEnd = player.currentTime; updateLoopInputs(); });
+
+    document.getElementById('btnJumpToStart').addEventListener('click', () => {
+        if (loopStart >= 0) { player.currentTime = loopStart; player.play(); }
+    });
+
+    const loopBtn = document.getElementById('btnToggleLoop');
+    loopBtn.addEventListener('click', () => {
+        isLooping = !isLooping;
+        loopBtn.innerText = isLooping ? "Loop ON (循环中)" : "Loop OFF";
+        loopBtn.style.background = isLooping ? "#dc3545" : "#28a745";
+        if (isLooping && loopStart >= 0) { player.currentTime = loopStart; player.play(); }
+    });
+
+    player.addEventListener('timeupdate', () => {
+        if (isLooping && player.currentTime >= loopEnd && loopEnd > 0) {
+            player.currentTime = loopStart; player.play();
+        }
+    });
+
+    // --- 6. LocalStorage Mapping (Saved Segments) ---
+    function checkSavedSegmentUI() {
+        const ui = document.getElementById('savedSegmentUI');
+        if (currentEpKey && savedSegments[currentEpKey]) {
+            ui.style.display = 'block';
+            document.getElementById('savedTimeTxt').innerText =
+                `${formatTime(savedSegments[currentEpKey].start)} to ${formatTime(savedSegments[currentEpKey].end)}`;
+        } else {
+            ui.style.display = 'none';
+        }
+    }
+
+    document.getElementById('btnSaveSegment').addEventListener('click', () => {
+        if (!currentEpKey || loopStart < 0 || loopEnd < 0) {
+            alert("Set a valid Start and End time first!"); return;
+        }
+        savedSegments[currentEpKey] = { start: loopStart, end: loopEnd };
+        localStorage.setItem('shadowing_segments', JSON.stringify(savedSegments));
+        checkSavedSegmentUI();
+
+        // Add badge to playlist
+        if (!document.getElementById('ep-' + currentEpKey).innerHTML.includes('Has Save')) {
+            document.getElementById('ep-' + currentEpKey).innerHTML += `<span class="badge">Has Save</span>`;
+        }
+    });
+
+    document.getElementById('btnPlaySaved').addEventListener('click', () => {
+        const data = savedSegments[currentEpKey];
+        if (data) {
+            loopStart = data.start; loopEnd = data.end;
+            updateLoopInputs();
+            isLooping = true;
+            loopBtn.innerText = "Loop ON (循环中)";
+            loopBtn.style.background = "#dc3545";
+            player.currentTime = loopStart;
+            player.play();
+        }
+    });
+
+    // --- 7. Advanced Tools & Shortcuts ---
+    document.getElementById('btnMinus').addEventListener('click', () => player.currentTime = Math.max(0, player.currentTime - 1));
+    document.getElementById('btnPlus').addEventListener('click', () => player.currentTime += 1);
+    document.getElementById('speedSelector').addEventListener('change', (e) => player.playbackRate = parseFloat(e.target.value));
+
+    document.getElementById('btnBlindMode').addEventListener('click', (e) => {
+        isBlind = !isBlind;
+        player.style.filter = isBlind ? 'brightness(0)' : 'none';
+        e.target.style.background = isBlind ? '#343a40' : '#6c757d';
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        switch(e.key.toLowerCase()) {
+            case ' ': e.preventDefault(); player.paused ? player.play() : player.pause(); break;
+            case 'arrowleft': player.currentTime = Math.max(0, player.currentTime - 1); break;
+            case 'arrowright': player.currentTime += 1; break;
+            case 'r': if (loopStart >= 0) { player.currentTime = loopStart; player.play(); } break;
+        }
+    });
+</script>
+</body>
+</html>

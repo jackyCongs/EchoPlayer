@@ -1,0 +1,20 @@
+# IDE Settings
+.idea/
+.vscode/
+*.swp
+
+# Media Files (CRITICAL: Do not push large videos to GitHub)
+*.mp4
+*.mkv
+*.srt
+*.vtt
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Python (if you use it for scripts)
+__pycache__/
+*.py[cod]
+*$py.class
