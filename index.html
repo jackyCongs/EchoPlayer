@@ -152,7 +152,11 @@
     // --- 2. Episode Loading & Auto-Subtitle ---
     function srtToVtt(srtText) {
         let vttText = "WEBVTT\n\n";
-        vttText += srtText.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        // 1. Replace commas with dots for VTT timestamp format
+        let processedText = srtText.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        // 2. Remove ASS styling tags (like {\fs16\an2\b0}) to fix the gibberish issue
+        processedText = processedText.replace(/\{[^}]+\}/g, '');
+        vttText += processedText;
         const blob = new Blob([vttText], { type: 'text/vtt' });
         return URL.createObjectURL(blob);
     }
