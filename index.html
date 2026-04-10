@@ -31,6 +31,39 @@
 
         .manual-time { width: 60px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
         .saved-segment-box { background: #e3f2fd; padding: 10px; border-radius: 6px; margin-top: 10px; display: none; border: 1px dashed #007bff; }
+        .data-management-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #495057;
+            background-color: #ffffff;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-btn:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+
+        .action-btn:active {
+            transform: translateY(1px);
+        }
     </style>
 </head>
 <body>
@@ -44,6 +77,17 @@
     <div id="playlist">
         <p style="color: #666; font-size: 14px; text-align: center;">Click the button above to load your files.</p>
     </div>
+    <div class="data-management-controls">
+    <button id="exportDataBtn" class="action-btn" title="Save your data to a file">
+        💾 Export Backup
+    </button>
+
+    <input type="file" id="importDataInput" accept=".json" style="display: none;">
+
+    <button id="importDataBtn" class="action-btn" title="Load your data from a file">
+        📂 Import Backup
+    </button>
+</div>
 </div>
 
 <div class="main-content">
@@ -118,15 +162,26 @@
         document.getElementById('playlist').innerHTML = '';
 
         for (let file of files) {
-            // Match pattern like "MDJT S01E01"
-            const match = file.name.match(/MDJT S\d{2}E\d{2}/i);
+            // 更加通用的正则：寻找 SxxExx 格式，不限前缀
+            const match = file.name.match(/S(\d{2})E(\d{2})/i);
             if (match) {
+                // 使用完整文件名作为 Key 的一部分，或者提取季集
                 const epKey = match[0].toUpperCase();
-                if (!episodesData[epKey]) episodesData[epKey] = {};
+                // 为了防止不同剧集冲突，我们加上文件名的前缀作为标识
+                const prefix = file.name.split(match[0])[0].replace(/[\.\s_-]+$/, '');
+                const fullKey = prefix ? `${prefix} ${epKey}` : epKey;
 
-                if (file.name.endsWith('.mp4')) episodesData[epKey].video = file;
-                else if (file.name.endsWith('-EN.srt')) episodesData[epKey].enSrt = file;
-                else if (file.name.endsWith('.srt') && !file.name.endsWith('-EN.srt')) episodesData[epKey].cnSrt = file;
+                if (!episodesData[fullKey]) episodesData[fullKey] = {};
+
+                const fileName = file.name.toLowerCase();
+                // 扩展支持：增加 .mkv 支持
+                if (fileName.endsWith('.mp4') || fileName.endsWith('.mkv')) {
+                    episodesData[fullKey].video = file;
+                } else if (fileName.endsWith('-en.srt')) {
+                    episodesData[fullKey].enSrt = file;
+                } else if (fileName.endsWith('.srt')) {
+                    episodesData[fullKey].cnSrt = file;
+                }
             }
         }
 
@@ -318,6 +373,95 @@
             case 'arrowright': player.currentTime += 1; break;
             case 'r': if (loopStart >= 0) { player.currentTime = loopStart; player.play(); } break;
         }
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+        // The key where your segments are currently saved in localStorage
+        const STORAGE_KEY = 'shadowing_segments';
+
+        const exportBtn = document.getElementById('exportDataBtn');
+        const importBtn = document.getElementById('importDataBtn');
+        const importInput = document.getElementById('importDataInput');
+
+        // ==========================================
+        // EXPORT FUNCTIONALITY
+        // ==========================================
+        exportBtn.addEventListener('click', () => {
+            // 1. Retrieve data from local storage
+            const savedData = localStorage.getItem(STORAGE_KEY);
+
+            if (!savedData) {
+                alert('No saved segments found to export.');
+                return;
+            }
+
+            // 2. Create a Blob from the JSON string
+            const blob = new Blob([savedData], { type: 'application/json' });
+
+            // 3. Generate a temporary download link
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            // 4. Set the file name (e.g., echoplayer_backup_2026-04-11.json)
+            const dateStr = new Date().toISOString().split('T')[0];
+            a.download = `echoplayer_backup_${dateStr}.json`;
+
+            // 5. Trigger the download and clean up
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // ==========================================
+        // IMPORT FUNCTIONALITY
+        // ==========================================
+
+        // Trigger the hidden file input when the button is clicked
+        importBtn.addEventListener('click', () => {
+            importInput.click();
+        });
+
+        // Handle the file selection
+        importInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+
+            if (!file) {
+                return; // User canceled the file picker
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                try {
+                    // 1. Parse the text to ensure it is valid JSON
+                    const fileContent = e.target.result;
+                    const parsedData = JSON.parse(fileContent);
+
+                    // 2. Save the validated JSON string back to localStorage
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+
+                    alert('Data imported successfully! The page will now reload to apply the changes.');
+
+                    // 3. Reload the page (or call your function to re-render the UI)
+                    location.reload();
+
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    alert('Failed to import data. Please ensure the file is a valid JSON backup.');
+                }
+
+                // 4. Clear the input so the same file can be imported again if needed
+                event.target.value = '';
+            };
+
+            reader.onerror = () => {
+                alert('Error reading the file.');
+            };
+
+            // Start reading the file as text
+            reader.readAsText(file);
+        });
     });
 </script>
 </body>

@@ -49,6 +49,8 @@ Browsers often lack support for AC3/DTS audio found in many high-quality `MKV` f
 ```powershell
 # PowerShell: Lossless video stream copy + AAC audio conversion
 Get-ChildItem *.mkv | ForEach-Object { ffmpeg -i "$($_.Name)" -c:v copy -c:a aac "$($_.BaseName).mp4" }
+# Extract the first subtitle track from all MKV files
+Get-ChildItem *.mkv | ForEach-Object { ffmpeg -i "$($_.Name)" -map 0:s:0 "$($_.BaseName)-EN.srt" }
 ```
 
 ### 2. Subtitle Injection
