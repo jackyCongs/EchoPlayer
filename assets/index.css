@@ -1,0 +1,154 @@
+/* Base Variables & Reset */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f0f2f5;
+    display: flex;
+    gap: 20px;
+}
+
+/* Layout Containers */
+.sidebar {
+    width: 300px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+.main-content {
+    flex: 1;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+h2, h3 { color: #333; margin-top: 0; }
+
+/* Playlist & Navigation */
+.folder-item {
+    background: #f0f0f0;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    border-left: 4px solid #007bff;
+}
+
+/* Flexbox applied to prevent text wrapping issues with long titles */
+.ep-item {
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-top: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.ep-item:hover { background: #f8f9fa; border-color: #007bff; }
+.ep-item.active { background: #e7f1ff; border-color: #007bff; font-weight: bold; }
+
+/* Save indicator badge */
+.badge {
+    font-size: 12px;
+    background: #28a745;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Video Player & Controls */
+video {
+    width: 100%;
+    border-radius: 8px;
+    background: #000;
+    margin-bottom: 20px;
+    aspect-ratio: 16/9;
+}
+.controls-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+.control-group {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+}
+
+/* Standardized Buttons */
+.btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 4px 2px;
+    transition: background 0.2s;
+}
+.btn:hover { background: #0056b3; }
+.btn.secondary { background: #6c757d; }
+.btn.warning { background: #ffc107; color: black; }
+.btn.success { background: #28a745; }
+
+.manual-time {
+    width: 60px;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+}
+.saved-segment-box {
+    background: #e3f2fd;
+    padding: 10px;
+    border-radius: 6px;
+    margin-top: 10px;
+    display: none;
+    border: 1px dashed #007bff;
+}
+
+/* Mobile Responsive Adaptation */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+        padding: 10px;
+    }
+    .main-content {
+        width: 100%;
+        order: 1;
+        padding: 15px;
+        box-sizing: border-box;
+    }
+    .sidebar {
+        width: 100%;
+        order: 2;
+        height: auto;
+        max-height: 50vh;
+        box-sizing: border-box;
+    }
+    .controls-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .btn {
+        padding: 12px;
+        margin: 5px 0;
+        width: 100%;
+    }
+    .manual-time {
+        width: 80px;
+    }
+}

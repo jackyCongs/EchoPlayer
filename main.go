@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -13,12 +13,13 @@ import (
 	"strings"
 )
 
-// 你指定的最新配置
+// DirConfig represents a directory mapping for video resources.
 type DirConfig struct {
 	Path  string
 	Alias string
 }
 
+// Pre-configured video directories and their aliases.
 var videoConfigs = []DirConfig{
 	{Path: `F:\baidunetdisk\young sheldon\Young.Sheldon.S01`, Alias: "Young Sheldon S01"},
 	{Path: `F:\baidunetdisk\young sheldon\Young.Sheldon.S02`, Alias: "Young Sheldon S02"},
@@ -26,6 +27,7 @@ var videoConfigs = []DirConfig{
 	{Path: `F:\baidunetdisk\S01`, Alias: "Modern Family S01"},
 }
 
+// Episode represents a single video episode with its associated subtitle files.
 type Episode struct {
 	Key   string `json:"key"`
 	Video string `json:"video"`
@@ -33,69 +35,83 @@ type Episode struct {
 	CnSrt string `json:"cnSrt"`
 }
 
+// Category groups episodes by their directory alias.
 type Category struct {
 	Alias    string    `json:"alias"`
 	Episodes []Episode `json:"episodes"`
 }
 
+// Regex to extract standard episode identifiers (e.g., S01E01, 1x01).
 var keyRegex = regexp.MustCompile(`S\d+E\d+|\d+X\d+`)
 
 const backupFile = "backup.json"
 
 func main() {
+	// Map physical video directories to HTTP endpoints.
 	for _, config := range videoConfigs {
 		folderName := filepath.Base(config.Path)
 		http.Handle("/"+folderName+"/", http.StripPrefix("/"+folderName+"/", http.FileServer(http.Dir(config.Path))))
 	}
 
+	// Serve the static frontend files (e.g., index.html) from the current working directory.
+	http.Handle("/", http.FileServer(http.Dir(".")))
+
+	// Define API routes.
 	http.HandleFunc("/api/list", listVideosHandler)
 	http.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusOK)
 	})
-
-	// 数据同步接口
 	http.HandleFunc("/api/segments/get", getSegmentsHandler)
 	http.HandleFunc("/api/segments/save", saveSegmentsHandler)
 
-	fmt.Println("EchoPlayer Resource Server started at :8080")
-	log.Fatal(http.ListenAndServe(":8080", corsMiddleware(http.DefaultServeMux)))
+	fmt.Println("EchoPlayer Local Server started at http://localhost:8000")
+
+	// Wrap the default multiplexer with CORS middleware.
+	log.Fatal(http.ListenAndServe(":8000", corsMiddleware(http.DefaultServeMux)))
 }
 
+// getSegmentsHandler reads and returns the saved shadowing segments.
 func getSegmentsHandler(w http.ResponseWriter, r *http.Request) {
-	data, err := ioutil.ReadFile(backupFile)
+	data, err := os.ReadFile(backupFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			w.Write([]byte("{}"))
 			return
 		}
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
 
+// saveSegmentsHandler overwrites the backup file with new segment data.
 func saveSegmentsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", 405)
+		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	body, _ := ioutil.ReadAll(r.Body)
-	// 直接覆盖写入，确保数据最新
-	err := ioutil.WriteFile(backupFile, body, 0644)
+	body, _ := io.ReadAll(r.Body)
+	err := os.WriteFile(backupFile, body, 0644)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
+// listVideosHandler scans the configured directories and returns a structured playlist.
 func listVideosHandler(w http.ResponseWriter, r *http.Request) {
 	var categories []Category
+
 	for _, config := range videoConfigs {
 		folderName := filepath.Base(config.Path)
-		files, _ := os.ReadDir(config.Path)
+		files, err := os.ReadDir(config.Path)
+		if err != nil {
+			log.Printf("Warning: Cannot read directory %s: %v", config.Path, err)
+			continue
+		}
+
 		var fileNames []string
 		for _, f := range files {
 			if !f.IsDir() {
@@ -114,7 +130,6 @@ func listVideosHandler(w http.ResponseWriter, r *http.Request) {
 				rawKey = strings.TrimSuffix(name, filepath.Ext(name))
 			}
 
-			// 使用你指定的 Alias 拼接唯一 Key
 			fullKey := config.Alias + " " + rawKey
 
 			if _, ok := tempMap[fullKey]; !ok {
@@ -122,6 +137,7 @@ func listVideosHandler(w http.ResponseWriter, r *http.Request) {
 				keys = append(keys, fullKey)
 			}
 
+			// Construct dynamic URLs for videos and subtitles.
 			fullURL := fmt.Sprintf("http://%s/%s/%s", r.Host, folderName, name)
 			if strings.HasSuffix(lowName, ".mp4") || strings.HasSuffix(lowName, ".mkv") {
 				tempMap[fullKey].Video = fullURL
@@ -140,15 +156,17 @@ func listVideosHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		categories = append(categories, cat)
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(categories)
 }
 
+// extractKey extracts standard episode identifiers using regex.
 func extractKey(name string) string {
-	match := keyRegex.FindString(strings.ToUpper(name))
-	return match
+	return keyRegex.FindString(strings.ToUpper(name))
 }
 
+// corsMiddleware applies necessary CORS headers to all responses.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
