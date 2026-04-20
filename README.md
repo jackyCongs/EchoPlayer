@@ -7,11 +7,11 @@
 
 ## 📖 Project Vision
 
-EchoPlayer was designed to solve the "Persistence Gap" in language learning. Unlike standard players, it treats shadowing as a data-driven process—allowing you to mark, save, and sync tricky dialogue segments across your PC and mobile devices.
+EchoPlayer was designed to solve the "Persistence Gap" in language learning. Unlike standard players, it treats shadowing as a data-driven process—allowing you to mark, save, and sync tricky dialogue segments across PC and mobile devices.
 
 ### Why this architecture?
-* **Centralized Logic**: Your Go server handles the heavy lifting (file serving, data persistence), keeping the client (browser) lightweight and fast.
-* **LAN Synchronization**: Save a segment on your PC, and it's immediately available on your iPad or phone for reviews.
+* **Centralized Logic**: Go server handles the heavy lifting (file serving, data persistence), keeping the client (browser) lightweight and fast.
+* **LAN Synchronization**: Save a segment on PC, and it's immediately available on iPad or phone for reviews.
 * **Codec Freedom**: The built-in Go converter ensures high-quality MKV files play smoothly on mobile Safari/Chrome with full audio support.
 
 ---
@@ -19,7 +19,7 @@ EchoPlayer was designed to solve the "Persistence Gap" in language learning. Unl
 ## 🛠️ Setup & Workflow (The 4-Step Start)
 
 ### 1. Configuration (Path Setup)
-Open `main.go` and map your local media directories to the server. This allows the Go backend to index your files:
+Open `main.go` and map local media directories to the server. This allows the Go backend to index files:
 ```go
 var videoConfigs = []DirConfig{
     {Path: `F:\BaiduNetdisk\Modern.Family.S01`, Alias: "Modern Family S01"},
@@ -42,12 +42,12 @@ go run main.go
 ```
 
 ### 4. Access the Player (Connection Guide)
-The server runs on port **8080**. You can access it from any device on your Wi-Fi:
+The server runs on port **8080**. You can access it from any device on Wi-Fi:
 
-* **On your Host PC**: Open [http://localhost:8080](http://localhost:8080)
+* **On Host PC**: Open [http://localhost:8080](http://localhost:8080)
 * **On Mobile/Tablet (LAN)**:
-  1. Find your PC's IP (run `ipconfig` in CMD, e.g., `192.168.31.100`).
-  2. Open your device browser and go to: `http://192.168.31.100:8080`
+  1. Find PC's IP (run `ipconfig` in CMD, e.g., `192.168.31.100`).
+  2. Open device browser and go to: `http://192.168.31.100:8080`
      *Note: The app will automatically remember this IP for future sessions.*
 
 ---
@@ -69,7 +69,7 @@ The server runs on port **8080**. You can access it from any device on your Wi-F
 This tool is optimized for the **4-Step Shadowing Method**:
 1.  **Blind Listen**: Use the "Blind Mode" to test initial comprehension.
 2.  **Logic Mapping**: Analyze the script and mark the A-B loop for difficult segments.
-3.  **Shadowing**: Use the `R` shortcut to repeat the segment until your rhythm matches the native speaker.
+3.  **Shadowing**: Use the `R` shortcut to repeat the segment until rhythm matches the native speaker.
 4.  **Harvesting**: Save segments to build a personal library of "Gold Sentences" for IELTS Speaking preparation.
 
 ---
