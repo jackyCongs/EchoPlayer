@@ -79,7 +79,7 @@ This tool is optimized for the **4-Step Shadowing Method**:
 ### User Interface
 The dashboard features an automated playlist, synchronized bilingual subtitles, and a dedicated segment memory bank.
 
-![UI Showcase](https://raw.githubusercontent.com/congbaochang/EchoPlayer/refs/heads/master/example.png)
+![UI Showcase](https://raw.githubusercontent.com/jackyCongs/EchoPlayer/refs/heads/master/example.png)
 
 ## 👨‍💻 Author
 **Jacky Cong**
