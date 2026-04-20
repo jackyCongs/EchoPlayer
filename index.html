@@ -3,59 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shadowing Player Pro</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; display: flex; gap: 20px; }
-        .sidebar { width: 300px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); height: calc(100vh - 40px); overflow-y: auto; }
-        .main-content { flex: 1; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        h2, h3 { color: #333; margin-top: 0; }
-
-        /* Playlist Styles */
-        .folder-item { background: #f0f0f0; padding: 10px; margin-top: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; border-left: 4px solid #007bff; }
-
-        /* 🏆 已应用 Flexbox 布局修复错行问题 */
-        .ep-item {
-            padding: 12px; border: 1px solid #eee; border-radius: 8px; margin-top: 5px;
-            cursor: pointer; transition: all 0.2s; font-size: 13px;
-            display: flex; justify-content: space-between; align-items: center; gap: 10px;
-        }
-        .ep-item:hover { background: #f8f9fa; border-color: #007bff; }
-        .ep-item.active { background: #e7f1ff; border-color: #007bff; font-weight: bold; }
-
-        /* 🏆 绝对禁止 Badge 换行 */
-        .badge { font-size: 12px; background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 5px; white-space: nowrap; flex-shrink: 0; }
-
-        /* Video & Controls */
-        video { width: 100%; border-radius: 8px; background: #000; margin-bottom: 20px; aspect-ratio: 16/9; }
-        .controls-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .control-group { background: #f8f9fa; padding: 15px; border-radius: 8px; }
-
-        .btn { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; margin: 4px 2px; }
-        .btn:hover { background: #0056b3; }
-        .btn.secondary { background: #6c757d; }
-        .btn.warning { background: #ffc107; color: black; }
-        .btn.success { background: #28a745; }
-
-        .manual-time { width: 60px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
-        .saved-segment-box { background: #e3f2fd; padding: 10px; border-radius: 6px; margin-top: 10px; display: none; border: 1px dashed #007bff; }
-    </style>
+    <title>EchoPlayer Pro | Shadowing Tool</title>
+    <link rel="stylesheet" href="assets/index.css">
 </head>
 <body>
 
 <div class="sidebar">
     <h2>📺 Episodes</h2>
-    <div style="margin-bottom: 15px;">
-        <input type="text" id="pcIP" placeholder="Enter PC IP (e.g. 192.168.1.10)" style="width: 80%; padding: 8px;">
-        <button onclick="connectToPC(null)" class="btn success" style="width: 100%; margin-top: 5px;">Connect to Echo Server</button>
-    </div>
     <div id="playlist">
-        <p style="color: #666; font-size: 14px; text-align: center;">Click the button above to load your files.</p>
+        <p style="color: #666; font-size: 14px; text-align: center;">Loading resources...</p>
     </div>
 </div>
 
 <div class="main-content">
     <h2 id="currentEpTitle">Select an episode to start</h2>
-    <video id="player" controls></video>
+    <video id="player" controls playsinline webkit-playsinline></video>
 
     <div class="controls-grid">
         <div class="control-group">
@@ -84,9 +46,9 @@
         <div class="control-group">
             <h3>💬 Subtitles & Tools</h3>
             <select id="subSelector" style="padding: 8px; width: 100%; margin-bottom: 10px;">
-                <option value="none">No Subtitles (无字幕)</option>
-                <option value="en">English (仅英文)</option>
-                <option value="bilingual">Bilingual (中英双语)</option>
+                <option value="none">No Subtitles</option>
+                <option value="en">English Only</option>
+                <option value="bilingual">Bilingual</option>
             </select>
 
             <button class="btn secondary" id="btnMinus">-1 Sec</button>
@@ -107,7 +69,7 @@
 </div>
 
 <script>
-    // --- Global States ---
+    // --- Application State ---
     const player = document.getElementById('player');
     let currentEpKey = null;
     let loopStart = -1;
@@ -115,40 +77,42 @@
     let isLooping = false;
     let isBlind = false;
     let savedSegments = {};
-    let serverIP = "";
 
-    // --- 1. Networking & Sync ---
-    async function connectToPC(targetIP) {
-        const ip = targetIP || document.getElementById('pcIP').value;
-        if (!ip) return false;
-        serverIP = ip;
+    // --- 1. Initialization & Networking ---
+    // Architecture updated to use relative paths (Same-Origin)
+    async function initApp() {
+        const statusTxt = document.getElementById('currentEpTitle');
+        statusTxt.innerText = "⏳ Synchronizing with Server...";
 
         try {
-            const dataRes = await fetch(`http://${ip}:8080/api/segments/get`);
+            const dataRes = await fetch('/api/segments/get');
             savedSegments = await dataRes.json();
 
-            const listRes = await fetch(`http://${ip}:8080/api/list`);
+            const listRes = await fetch('/api/list');
             const categories = await listRes.json();
             renderPlaylist(categories);
 
-            localStorage.setItem('echoplayer_pc_ip', ip);
-            document.getElementById('currentEpTitle').innerText = "☁️ Server Synced: " + ip;
-            return true;
+            statusTxt.innerText = "☁️ Local Server Connected";
         } catch (err) {
-            console.error("Sync error:", err);
-            return false;
+            console.error("Initialization error:", err);
+            statusTxt.innerText = "❌ Connection Failed. Ensure the Go server is running.";
         }
     }
 
     async function syncToServer() {
-        await fetch(`http://${serverIP}:8080/api/segments/save`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(savedSegments)
-        });
+        try {
+            await fetch('/api/segments/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(savedSegments)
+            });
+        } catch (err) {
+            console.error("Failed to sync to server:", err);
+            alert("Warning: Failed to save data to the server.");
+        }
     }
 
-    // --- 2. Playlist Rendering ---
+    // --- 2. UI Rendering ---
     function renderPlaylist(categories) {
         const playlist = document.getElementById('playlist');
         playlist.innerHTML = '';
@@ -172,12 +136,13 @@
             cat.episodes.forEach(ep => {
                 const div = document.createElement('div');
                 div.className = 'ep-item';
+                // Generate a safe DOM ID to prevent selector errors
                 div.id = 'ep-' + ep.key.replace(/[^a-zA-Z0-9]/g, '-');
 
                 const hasSave = savedSegments[ep.key];
                 const badgeHtml = hasSave ? `<span class="badge">Has Save</span>` : '';
 
-                // 🏆 使用 Span 包裹标题，防止超长文本挤压 Badge
+                // Wrap text in a span to allow CSS truncation (ellipsis) without pushing the badge out
                 div.innerHTML = `
                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         🎬 ${ep.key}
@@ -200,7 +165,7 @@
         });
     }
 
-    // --- 3. Video & Subtitle Loading ---
+    // --- 3. Media & Subtitle Management ---
     function playVideo(ep) {
         currentEpKey = ep.key;
         player.src = ep.video;
@@ -224,10 +189,11 @@
         });
     }
 
+    // Converts SubRip (.srt) format to WebVTT format for HTML5 Video compatibility
     function srtToVtt(srtText) {
         let vttText = "WEBVTT\n\n";
         let processedText = srtText.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-        processedText = processedText.replace(/\{[^}]+\}/g, '');
+        processedText = processedText.replace(/\{[^}]+\}/g, ''); // Strip standard SRT formatting tags
         vttText += processedText;
         const blob = new Blob([vttText], { type: 'text/vtt' });
         return URL.createObjectURL(blob);
@@ -243,7 +209,7 @@
     }
     document.getElementById('subSelector').addEventListener('change', applySubtitleSelection);
 
-    // --- 4. Loop & Time Control ---
+    // --- 4. Shadowing Controls (A-B Loop) ---
     function parseTime(str) {
         const parts = str.split(':').map(Number);
         if (parts.length === 2) return parts[0] * 60 + parts[1];
@@ -267,7 +233,6 @@
         if (!isNaN(a) && !isNaN(b) && b > a) {
             loopStart = a; loopEnd = b;
             updateLoopInputs();
-            alert(`Manual loop set: ${formatTime(a)} to ${formatTime(b)}`);
         }
     });
 
@@ -278,18 +243,20 @@
     const loopBtn = document.getElementById('btnToggleLoop');
     loopBtn.addEventListener('click', () => {
         isLooping = !isLooping;
-        loopBtn.innerText = isLooping ? "Loop ON (循环中)" : "Loop OFF";
+        loopBtn.innerText = isLooping ? "Loop ON" : "Loop OFF";
         loopBtn.style.background = isLooping ? "#dc3545" : "#28a745";
         if (isLooping && loopStart >= 0) { player.currentTime = loopStart; player.play(); }
     });
 
+    // Core loop logic enforcing A-B boundaries
     player.addEventListener('timeupdate', () => {
         if (isLooping && player.currentTime >= loopEnd && loopEnd > 0) {
-            player.currentTime = loopStart; player.play();
+            player.currentTime = loopStart;
+            player.play();
         }
     });
 
-    // --- 5. Save & Memory Logic ---
+    // --- 5. Data Persistence UI ---
     function checkSavedSegmentUI() {
         const ui = document.getElementById('savedSegmentUI');
         if (currentEpKey && savedSegments[currentEpKey]) {
@@ -308,6 +275,7 @@
         await syncToServer();
         checkSavedSegmentUI();
 
+        // Dynamically append the badge if it doesn't exist
         const safeId = 'ep-' + currentEpKey.replace(/[^a-zA-Z0-9]/g, '-');
         const itemUI = document.getElementById(safeId);
         if (itemUI && !itemUI.innerHTML.includes('Has Save')) {
@@ -321,24 +289,26 @@
             loopStart = data.start; loopEnd = data.end;
             updateLoopInputs();
             isLooping = true;
-            loopBtn.innerText = "Loop ON (循环中)";
+            loopBtn.innerText = "Loop ON";
             loopBtn.style.background = "#dc3545";
             player.currentTime = loopStart;
             player.play();
         }
     });
 
-    // --- 6. Shortcuts & Utilities ---
+    // --- 6. Utilities & Hotkeys ---
     document.getElementById('btnMinus').addEventListener('click', () => player.currentTime = Math.max(0, player.currentTime - 1));
     document.getElementById('btnPlus').addEventListener('click', () => player.currentTime += 1);
     document.getElementById('speedSelector').addEventListener('change', (e) => player.playbackRate = parseFloat(e.target.value));
 
+    // Blind mode for purely auditory shadowing practice
     document.getElementById('btnBlindMode').addEventListener('click', (e) => {
         isBlind = !isBlind;
         player.style.filter = isBlind ? 'brightness(0)' : 'none';
         e.target.style.background = isBlind ? '#343a40' : '#6c757d';
     });
 
+    // Keyboard shortcuts for efficient studying
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
         switch(e.key.toLowerCase()) {
@@ -349,45 +319,8 @@
         }
     });
 
-    // --- 7. Initialization ---
-    async function autoScan() {
-        const statusTxt = document.getElementById('currentEpTitle');
-        const savedIP = localStorage.getItem('echoplayer_pc_ip');
-
-        if (savedIP) {
-            statusTxt.innerText = `🔄 Attempting to reconnect to ${savedIP}...`;
-            if (await connectToPC(savedIP)) return;
-        }
-
-        statusTxt.innerText = "🔍 Searching for your PC in LAN...";
-        const subnet = "192.168.31.";
-        const port = "8080";
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500);
-
-        const scanPromises = [];
-        for (let i = 1; i < 255; i++) {
-            const ip = `${subnet}${i}`;
-            scanPromises.push(
-                fetch(`http://${ip}:${port}/api/ping`, { signal: controller.signal })
-                    .then(res => res.ok ? ip : null)
-                    .catch(() => null)
-            );
-        }
-
-        try {
-            const validPromises = scanPromises.filter(p => p !== null);
-            const fastIP = await Promise.any(validPromises);
-            if (fastIP) {
-                clearTimeout(timeoutId);
-                connectToPC(fastIP);
-            }
-        } catch (e) {
-            statusTxt.innerText = "❌ No EchoPlayer found. Please enter IP manually.";
-        }
-    }
-
-    window.onload = autoScan;
+    // Bootstrap application
+    window.onload = initApp;
 </script>
 </body>
 </html>
