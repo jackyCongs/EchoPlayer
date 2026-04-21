@@ -176,6 +176,9 @@
         if (ep.cnSrt) addRemoteTrack(ep.cnSrt, 'zh', 'Bilingual');
 
         player.play();
+        setTimeout(function (){
+            applySubtitleSelection()
+        }, 300)
     }
 
     function addRemoteTrack(url, lang, label) {
@@ -201,6 +204,7 @@
 
     function applySubtitleSelection() {
         const val = document.getElementById('subSelector').value;
+        console.log(val)
         for (let i = 0; i < player.textTracks.length; i++) {
             player.textTracks[i].mode = 'disabled';
             if (val === 'en' && player.textTracks[i].language === 'en') player.textTracks[i].mode = 'showing';
