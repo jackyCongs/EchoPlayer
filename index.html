@@ -17,51 +17,63 @@
 
 <div class="main-content">
     <h2 id="currentEpTitle">Select an episode to start</h2>
-    <video id="player" controls playsinline webkit-playsinline></video>
+    <video id="player" controls playsinline></video>
+
+    <div id="intensiveDashboard" class="shadowing-dashboard" style="display: none;">
+        <div class="status-left">
+            <strong>📍 Active Segment:</strong> <span id="savedTimeTxt">--:--</span>
+        </div>
+
+        <div id="subChunkControls" class="status-center" style="display: none;">
+            <span>🧩Sub-Chunk: <span id="subChunkInfo" style="color: #28a745; font-weight: bold;">0 / 0</span></span>
+            <div class="btn-group-sm">
+                <button class="btn secondary btn-sm" id="btnPrevSubChunk">Prev</button>
+                <button class="btn secondary btn-sm" id="btnNextSubChunk">Next</button>
+            </div>
+        </div>
+
+        <div class="status-right">
+            <button class="btn success btn-sm" id="btnPlaySaved">▶️ Play / Reset Segment</button>
+        </div>
+    </div>
 
     <div class="controls-grid">
         <div class="control-group">
-            <h3>🔄 Intensive Loop</h3>
-            <button class="btn" id="btnSetStart">Set [A]</button>
-            <button class="btn" id="btnSetEnd">Set [B]</button>
-            <button class="btn success" id="btnToggleLoop">Loop OFF</button>
-            <button class="btn secondary" id="btnJumpToStart">Replay [A]</button>
-
-            <div style="margin-top: 10px;">
-                <label>Manual (MM:SS): </label>
-                <input type="text" id="manualA" class="manual-time" placeholder="00:00"> to
-                <input type="text" id="manualB" class="manual-time" placeholder="00:00">
-                <button class="btn secondary" id="btnApplyManual">Apply</button>
+            <h3>🔄 Setup Loop</h3>
+            <div class="btn-group-row">
+                <button class="btn" id="btnSetStart">Set [A]</button>
+                <button class="btn" id="btnSetEnd">Set [B]</button>
+                <button class="btn success" id="btnToggleLoop">Loop OFF</button>
+                <button class="btn secondary" id="btnJumpToStart">Replay [A]</button>
             </div>
-
-            <div style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
-                <button class="btn warning" id="btnSaveSegment">💾 Save Segment to Server</button>
-                <div id="savedSegmentUI" class="saved-segment-box">
-                    <strong>Saved Cut:</strong> <span id="savedTimeTxt"></span>
-                    <button class="btn success" id="btnPlaySaved" style="width: 100%; margin-top: 5px;">▶️ Play Saved Segment</button>
-                </div>
+            <div style="margin-top: 10px; display: flex; align-items: center; gap: 5px;">
+                Manual (MM:SS):
+                <input type="text" id="manualA" style="width: 60px;" placeholder="00:00"> to
+                <input type="text" id="manualB" style="width: 60px;" placeholder="00:00">
+                <button class="btn secondary" id="btnApplyManual" style="padding: 5px 10px;">Apply</button>
             </div>
+            <button class="btn warning" id="btnSaveSegment" style="width: 100%; margin-top: 15px;">💾 Save Gold Segment</button>
         </div>
 
         <div class="control-group">
             <h3>💬 Subtitles & Tools</h3>
-            <select id="subSelector" style="padding: 8px; width: 100%; margin-bottom: 10px;">
+            <select id="subSelector" style="width: 100%; padding: 5px; margin-bottom: 10px;">
                 <option value="none">No Subtitles</option>
-                <option value="en">English Only</option>
+                <option value="en" selected>English</option>
                 <option value="bilingual">Bilingual</option>
             </select>
-
-            <button class="btn secondary" id="btnMinus">-1 Sec</button>
-            <button class="btn secondary" id="btnPlus">+1 Sec</button>
-            <button class="btn secondary" id="btnBlindMode">👁️ Blind Mode</button>
-
+            <div class="btn-group-row">
+                <button class="btn secondary" id="btnMinus">-1 Sec</button>
+                <button class="btn secondary" id="btnPlus">+1 Sec</button>
+                <button class="btn secondary" id="btnBlindMode">👁️ Blind Mode</button>
+            </div>
             <div style="margin-top: 10px;">
-                <label>Speed: </label>
-                <select id="speedSelector" style="padding: 6px;">
+                Speed:
+                <select id="speedSelector">
                     <option value="1.0">1.0x</option>
                     <option value="0.9">0.9x</option>
                     <option value="0.8">0.8x</option>
-                    <option value="0.7">0.7x</option>
+                    <option value="0.75">0.75x</option>
                 </select>
             </div>
         </div>
@@ -78,24 +90,106 @@
     let isBlind = false;
     let savedSegments = {};
 
-    // --- 1. Initialization & Networking ---
-    // Architecture updated to use relative paths (Same-Origin)
+    // Sub-chunking State
+    let currentSubtitles = [];
+    let subChunks = [];
+    let currentSubChunkIndex = -1;
+
+    // --- SRT Parsing Logic ---
+    function parseSrtToArray(srtText) {
+        const subs = [];
+        const regex = /(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})/g;
+        let match;
+        while ((match = regex.exec(srtText)) !== null) {
+            subs.push({
+                start: srtTimeToSec(match[1]),
+                end: srtTimeToSec(match[2])
+            });
+        }
+        return subs;
+    }
+
+    function srtTimeToSec(timeStr) {
+        const parts = timeStr.replace(',', '.').split(':');
+        return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+    }
+
+    // --- Sub-Chunking Logic ---
+    function generateSubChunksFromSaved(rangeStart, rangeEnd) {
+        subChunks = [];
+        const relevantSubs = currentSubtitles.filter(s => s.start >= rangeStart && s.end <= rangeEnd);
+
+        if (relevantSubs.length === 0) {
+            for (let t = rangeStart; t < rangeEnd; t += 30) {
+                subChunks.push({ start: t, end: Math.min(t + 30, rangeEnd) });
+            }
+        } else {
+            let chunkStart = rangeStart;
+            const TARGET = 30;
+            for (let i = 0; i < relevantSubs.length; i++) {
+                if (relevantSubs[i].end - chunkStart >= TARGET || i === relevantSubs.length - 1) {
+                    subChunks.push({ start: chunkStart, end: relevantSubs[i].end });
+                    if (i < relevantSubs.length - 1) chunkStart = relevantSubs[i+1].start;
+                }
+            }
+        }
+
+        currentSubChunkIndex = 0;
+        document.getElementById('subChunkControls').style.display = 'flex';
+        updateSubChunkUI();
+    }
+
+    function updateSubChunkUI() {
+        document.getElementById('subChunkInfo').innerText = `${currentSubChunkIndex + 1} / ${subChunks.length}`;
+    }
+
+    function applySubChunk() {
+        if (currentSubChunkIndex < 0 || subChunks.length === 0) return;
+        const chunk = subChunks[currentSubChunkIndex];
+
+        loopStart = chunk.start;
+        loopEnd = chunk.end;
+
+        updateLoopInputs();
+        isLooping = true;
+
+        const loopBtn = document.getElementById('btnToggleLoop');
+        loopBtn.innerText = "Loop ON";
+        loopBtn.style.background = "#dc3545";
+
+        player.currentTime = loopStart;
+        player.play();
+        updateSubChunkUI();
+    }
+
+    document.getElementById('btnNextSubChunk').onclick = () => {
+        if (currentSubChunkIndex < subChunks.length - 1) {
+            currentSubChunkIndex++;
+            applySubChunk();
+        }
+    };
+
+    document.getElementById('btnPrevSubChunk').onclick = () => {
+        if (currentSubChunkIndex > 0) {
+            currentSubChunkIndex--;
+            applySubChunk();
+        }
+    };
+
+    // --- Initialization & Networking ---
     async function initApp() {
         const statusTxt = document.getElementById('currentEpTitle');
         statusTxt.innerText = "⏳ Synchronizing with Server...";
-
         try {
             const dataRes = await fetch('/api/segments/get');
             savedSegments = await dataRes.json();
-
             const listRes = await fetch('/api/list');
             const categories = await listRes.json();
             renderPlaylist(categories);
-
             statusTxt.innerText = "☁️ Local Server Connected";
         } catch (err) {
-            console.error("Initialization error:", err);
-            statusTxt.innerText = "❌ Connection Failed. Ensure the Go server is running.";
+            console.error(err);
+            statusTxt.innerText = "❌ Connection Failed.";
         }
     }
 
@@ -106,17 +200,13 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(savedSegments)
             });
-        } catch (err) {
-            console.error("Failed to sync to server:", err);
-            alert("Warning: Failed to save data to the server.");
-        }
+        } catch (err) {}
     }
 
-    // --- 2. UI Rendering ---
+    // --- UI Rendering ---
     function renderPlaylist(categories) {
         const playlist = document.getElementById('playlist');
         playlist.innerHTML = '';
-
         categories.forEach((cat, index) => {
             const folderDiv = document.createElement('div');
             folderDiv.className = 'folder-item';
@@ -136,19 +226,10 @@
             cat.episodes.forEach(ep => {
                 const div = document.createElement('div');
                 div.className = 'ep-item';
-                // Generate a safe DOM ID to prevent selector errors
                 div.id = 'ep-' + ep.key.replace(/[^a-zA-Z0-9]/g, '-');
-
                 const hasSave = savedSegments[ep.key];
                 const badgeHtml = hasSave ? `<span class="badge">Has Save</span>` : '';
-
-                // Wrap text in a span to allow CSS truncation (ellipsis) without pushing the badge out
-                div.innerHTML = `
-                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        🎬 ${ep.key}
-                    </span>
-                    ${badgeHtml}
-                `;
+                div.innerHTML = `<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🎬 ${ep.key}</span>${badgeHtml}`;
 
                 div.onclick = (e) => {
                     e.stopPropagation();
@@ -159,30 +240,35 @@
                 };
                 epContainer.appendChild(div);
             });
-
             playlist.appendChild(folderDiv);
             playlist.appendChild(epContainer);
         });
     }
 
-    // --- 3. Media & Subtitle Management ---
+    // --- Media & Subtitle Management ---
     function playVideo(ep) {
         currentEpKey = ep.key;
         player.src = ep.video;
         player.innerHTML = '';
         document.getElementById('currentEpTitle').innerText = "Playing: " + ep.key;
 
+        // Reset subchunks on new video
+        subChunks = [];
+        currentSubtitles = [];
+        document.getElementById('subChunkControls').style.display = 'none';
+
         if (ep.enSrt) addRemoteTrack(ep.enSrt, 'en', 'English');
         if (ep.cnSrt) addRemoteTrack(ep.cnSrt, 'zh', 'Bilingual');
 
         player.play();
-        setTimeout(function (){
-            applySubtitleSelection()
-        }, 300)
+        setTimeout(applySubtitleSelection, 300);
     }
 
     function addRemoteTrack(url, lang, label) {
         fetch(url).then(r => r.text()).then(text => {
+            if (lang === 'en') {
+                currentSubtitles = parseSrtToArray(text);
+            }
             const track = document.createElement('track');
             track.kind = 'subtitles';
             track.srclang = lang;
@@ -192,28 +278,28 @@
         });
     }
 
-    // Converts SubRip (.srt) format to WebVTT format for HTML5 Video compatibility
     function srtToVtt(srtText) {
         let vttText = "WEBVTT\n\n";
         let processedText = srtText.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-        processedText = processedText.replace(/\{[^}]+\}/g, ''); // Strip standard SRT formatting tags
+        processedText = processedText.replace(/\{[^}]+\}/g, '');
         vttText += processedText;
-        const blob = new Blob([vttText], { type: 'text/vtt' });
-        return URL.createObjectURL(blob);
+        return URL.createObjectURL(new Blob([vttText], { type: 'text/vtt' }));
     }
 
     function applySubtitleSelection() {
         const val = document.getElementById('subSelector').value;
-        console.log(val)
         for (let i = 0; i < player.textTracks.length; i++) {
             player.textTracks[i].mode = 'disabled';
             if (val === 'en' && player.textTracks[i].language === 'en') player.textTracks[i].mode = 'showing';
             if (val === 'bilingual' && player.textTracks[i].language === 'zh') player.textTracks[i].mode = 'showing';
         }
     }
-    document.getElementById('subSelector').addEventListener('change', applySubtitleSelection);
 
-    // --- 4. Shadowing Controls (A-B Loop) ---
+    // --- Check if element exists before adding listener to avoid errors ---
+    const subSel = document.getElementById('subSelector');
+    if(subSel) subSel.addEventListener('change', applySubtitleSelection);
+
+    // --- Shadowing Controls ---
     function parseTime(str) {
         const parts = str.split(':').map(Number);
         if (parts.length === 2) return parts[0] * 60 + parts[1];
@@ -252,7 +338,6 @@
         if (isLooping && loopStart >= 0) { player.currentTime = loopStart; player.play(); }
     });
 
-    // Core loop logic enforcing A-B boundaries
     player.addEventListener('timeupdate', () => {
         if (isLooping && player.currentTime >= loopEnd && loopEnd > 0) {
             player.currentTime = loopStart;
@@ -260,26 +345,25 @@
         }
     });
 
-    // --- 5. Data Persistence UI ---
+    // --- Data Persistence UI ---
     function checkSavedSegmentUI() {
-        const ui = document.getElementById('savedSegmentUI');
+        const dashboard = document.getElementById('intensiveDashboard');
+        const timeTxt = document.getElementById('savedTimeTxt');
+
         if (currentEpKey && savedSegments[currentEpKey]) {
-            ui.style.display = 'block';
-            document.getElementById('savedTimeTxt').innerText =
-                `${formatTime(savedSegments[currentEpKey].start)} to ${formatTime(savedSegments[currentEpKey].end)}`;
+            dashboard.style.display = 'flex'; // Changed to flex for horizontal layout
+            timeTxt.innerText = `${formatTime(savedSegments[currentEpKey].start)} to ${formatTime(savedSegments[currentEpKey].end)}`;
         } else {
-            ui.style.display = 'none';
+            dashboard.style.display = 'none';
         }
     }
 
     document.getElementById('btnSaveSegment').onclick = async () => {
         if (!currentEpKey || loopStart < 0 || loopEnd < 0) return;
-
         savedSegments[currentEpKey] = { start: loopStart, end: loopEnd };
         await syncToServer();
         checkSavedSegmentUI();
 
-        // Dynamically append the badge if it doesn't exist
         const safeId = 'ep-' + currentEpKey.replace(/[^a-zA-Z0-9]/g, '-');
         const itemUI = document.getElementById(safeId);
         if (itemUI && !itemUI.innerHTML.includes('Has Save')) {
@@ -297,22 +381,23 @@
             loopBtn.style.background = "#dc3545";
             player.currentTime = loopStart;
             player.play();
+
+            generateSubChunksFromSaved(data.start, data.end);
+            applySubChunk();
         }
     });
 
-    // --- 6. Utilities & Hotkeys ---
+    // --- Utilities & Hotkeys ---
     document.getElementById('btnMinus').addEventListener('click', () => player.currentTime = Math.max(0, player.currentTime - 1));
     document.getElementById('btnPlus').addEventListener('click', () => player.currentTime += 1);
     document.getElementById('speedSelector').addEventListener('change', (e) => player.playbackRate = parseFloat(e.target.value));
 
-    // Blind mode for purely auditory shadowing practice
     document.getElementById('btnBlindMode').addEventListener('click', (e) => {
         isBlind = !isBlind;
         player.style.filter = isBlind ? 'brightness(0)' : 'none';
         e.target.style.background = isBlind ? '#343a40' : '#6c757d';
     });
 
-    // Keyboard shortcuts for efficient studying
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
         switch(e.key.toLowerCase()) {
@@ -320,10 +405,21 @@
             case 'arrowleft': player.currentTime = Math.max(0, player.currentTime - 1); break;
             case 'arrowright': player.currentTime += 1; break;
             case 'r': if (loopStart >= 0) { player.currentTime = loopStart; player.play(); } break;
+            case '[':
+                if (currentSubChunkIndex > 0) {
+                    currentSubChunkIndex--;
+                    applySubChunk();
+                }
+                break;
+            case ']':
+                if (currentSubChunkIndex < subChunks.length - 1) {
+                    currentSubChunkIndex++;
+                    applySubChunk();
+                }
+                break;
         }
     });
 
-    // Bootstrap application
     window.onload = initApp;
 </script>
 </body>
