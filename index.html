@@ -23,17 +23,19 @@
         <div class="status-left">
             <strong>📍 Active Segment:</strong> <span id="savedTimeTxt">--:--</span>
         </div>
-
-        <div id="subChunkControls" class="status-center" style="display: none;">
-            <span>🧩Sub-Chunk: <span id="subChunkInfo" style="color: #28a745; font-weight: bold;">0 / 0</span></span>
-            <div class="btn-group-sm">
-                <button class="btn secondary btn-sm" id="btnPrevSubChunk">Prev</button>
-                <button class="btn secondary btn-sm" id="btnNextSubChunk">Next</button>
+        <div id="subChunkControls" style="display: none; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button class="btn secondary btn-sm" id="btnToggleSubMode" style="margin: 0;">🧩 Micro-Loop: OFF</button>
+            <div id="subChunkNav" class="status-center" style="display: none; margin: 0; padding: 4px 15px;">
+                <span id="subChunkInfo" style="color: #28a745; font-weight: bold; font-size: 13px;">0 / 0</span>
+                <div class="btn-group-sm">
+                    <button class="btn secondary btn-sm" id="btnPrevSubChunk" style="margin: 0;">Prev</button>
+                    <button class="btn secondary btn-sm" id="btnNextSubChunk" style="margin: 0;">Next</button>
+                </div>
             </div>
         </div>
 
         <div class="status-right">
-            <button class="btn success btn-sm" id="btnPlaySaved">▶️ Play / Reset Segment</button>
+            <button class="btn success btn-sm" id="btnPlaySaved" style="margin: 0;">▶️ Play / Reset Segment</button>
         </div>
     </div>
 
@@ -94,6 +96,7 @@
     let currentSubtitles = [];
     let subChunks = [];
     let currentSubChunkIndex = -1;
+    let isSubChunkMode = false;
 
     // --- SRT Parsing Logic ---
     function parseSrtToArray(srtText) {
@@ -374,16 +377,50 @@
     document.getElementById('btnPlaySaved').addEventListener('click', () => {
         const data = savedSegments[currentEpKey];
         if (data) {
-            loopStart = data.start; loopEnd = data.end;
+            loopStart = data.start;
+            loopEnd = data.end;
             updateLoopInputs();
+
             isLooping = true;
+            const loopBtn = document.getElementById('btnToggleLoop');
             loopBtn.innerText = "Loop ON";
             loopBtn.style.background = "#dc3545";
+
             player.currentTime = loopStart;
             player.play();
 
             generateSubChunksFromSaved(data.start, data.end);
+
+            isSubChunkMode = false;
+            document.getElementById('btnToggleSubMode').innerText = "🧩 Micro-Loop: OFF";
+            document.getElementById('btnToggleSubMode').className = "btn secondary btn-sm";
+            document.getElementById('subChunkNav').style.display = "none";
+        }
+    });
+
+    document.getElementById('btnToggleSubMode').addEventListener('click', (e) => {
+        isSubChunkMode = !isSubChunkMode;
+        const navUI = document.getElementById('subChunkNav');
+        if (isSubChunkMode) {
+            e.target.innerText = "🧩 Micro-Loop: ON";
+            e.target.className = "btn warning btn-sm";
+            navUI.style.display = "flex";
+
+            if (currentSubChunkIndex < 0) currentSubChunkIndex = 0;
             applySubChunk();
+        } else {
+            e.target.innerText = "🧩 Micro-Loop: OFF";
+            e.target.className = "btn secondary btn-sm";
+            navUI.style.display = "none";
+
+            const data = savedSegments[currentEpKey];
+            if (data) {
+                loopStart = data.start;
+                loopEnd = data.end;
+                updateLoopInputs();
+                player.currentTime = loopStart;
+                player.play();
+            }
         }
     });
 
@@ -406,13 +443,13 @@
             case 'arrowright': player.currentTime += 1; break;
             case 'r': if (loopStart >= 0) { player.currentTime = loopStart; player.play(); } break;
             case '[':
-                if (currentSubChunkIndex > 0) {
+                if (isSubChunkMode && currentSubChunkIndex > 0) {
                     currentSubChunkIndex--;
                     applySubChunk();
                 }
                 break;
             case ']':
-                if (currentSubChunkIndex < subChunks.length - 1) {
+                if (isSubChunkMode && currentSubChunkIndex < subChunks.length - 1) {
                     currentSubChunkIndex++;
                     applySubChunk();
                 }
