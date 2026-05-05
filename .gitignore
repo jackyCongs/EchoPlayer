@@ -20,3 +20,4 @@ __pycache__/
 *$py.class
 EchoPlayer.exe
 start_server.vbs
+backup.json
