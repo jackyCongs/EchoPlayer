@@ -1,4 +1,7 @@
 /* Base Variables & Reset */
+* {
+    touch-action: manipulation;
+}
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     max-width: 1200px;
@@ -154,11 +157,21 @@ video {
     font-size: 13px !important;
 }
 
-/* Mobile Responsive Adaptation */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     body {
         flex-direction: column;
         padding: 10px;
+        touch-action: manipulation;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+    input, textarea, select {
+        -webkit-user-select: auto;
+        user-select: auto;
+        touch-action: auto;
     }
     .main-content {
         width: 100%;
@@ -177,13 +190,27 @@ video {
         grid-template-columns: 1fr;
         gap: 10px;
     }
+    .btn-group-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 10px;
+    }
     .btn {
-        padding: 12px;
-        margin: 5px 0;
+        padding: 10px 5px;
+        margin: 0;
         width: 100%;
+        font-size: 13px;
+    }
+
+    /* Keep the primary action button full-width */
+    #btnSaveSegment {
+        grid-column: span 2;
+        margin-top: 10px !important;
+        padding: 12px;
     }
     .manual-time {
-        width: 80px;
+        width: 60px;
     }
 
     .shadowing-dashboard {
@@ -192,27 +219,9 @@ video {
         gap: 12px;
     }
 
-    .status-left {
-        text-align: center;
-        font-size: 14px;
-    }
-
     .status-center {
         justify-content: space-between;
         width: 100%;
         box-sizing: border-box;
-    }
-
-    .status-right .btn {
-        width: 100%;
-        padding: 10px !important;
-        font-size: 16px !important;
-    }
-
-    .btn-group-row {
-        flex-wrap: wrap;
-    }
-    .btn-group-row .btn {
-        flex: 1 1 auto;
     }
 }
